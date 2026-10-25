@@ -1338,12 +1338,16 @@ console.log(JSON.stringify({ type: "result", subtype: "success", result: "hello"
   });
 
   it("reactivates an archived provider application when saving an AI connection", async () => {
+    const testCompanyId = randomUUID();
+    await db.insert(companies).values({ id: testCompanyId, name: "Reactivate App Company", issuePrefix: `R${randomUUID().slice(0, 5)}` });
+    await db.insert(companyMemberships).values({ companyId: testCompanyId, principalId: "alice", principalType: "user", status: "active", membershipRole: "member" });
+
     const key = "app-gallery:openai";
     const archivedAt = new Date("2026-01-01T00:00:00.000Z");
     await db
       .insert(toolApplications)
       .values({
-        companyId,
+        companyId: testCompanyId,
         applicationKey: key,
         name: "OpenAI",
         type: "mcp_http",
@@ -1351,16 +1355,10 @@ console.log(JSON.stringify({ type: "result", subtype: "success", result: "hello"
         archivedAt,
         metadata: { sourceTemplateKey: "openai" },
         ownerUserId: "alice",
-      })
-      .onConflictDoNothing();
-
-    await db
-      .update(toolApplications)
-      .set({ status: "archived", archivedAt })
-      .where(and(eq(toolApplications.companyId, companyId), eq(toolApplications.applicationKey, key)));
+      });
 
     const saved = await service.save(
-      companyId,
+      testCompanyId,
       "alice",
       {
         provider: "openai",
@@ -1380,7 +1378,7 @@ console.log(JSON.stringify({ type: "result", subtype: "success", result: "hello"
     const [app] = await db
       .select()
       .from(toolApplications)
-      .where(and(eq(toolApplications.companyId, companyId), eq(toolApplications.applicationKey, key)));
+      .where(and(eq(toolApplications.companyId, testCompanyId), eq(toolApplications.applicationKey, key)));
     expect(app).toBeDefined();
     expect(app!.status).toBe("active");
     expect(app!.archivedAt).toBeNull();
